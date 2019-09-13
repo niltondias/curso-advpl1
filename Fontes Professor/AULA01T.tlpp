@@ -1,0 +1,26 @@
+#include 'protheus.ch'
+#include 'parmtype.ch'
+
+user function AULA01T()
+
+Private cTitulo   AS CHARACTER
+Private cMensagem AS CHARACTER
+Private aBotoes   AS ARRAY 
+Private nTamanho  AS NUMERIC // tamanho da janela, p,m,g --> 1,2,3
+Private cTexto    AS VARCHAR
+Private nRet      AS NUMERIC
+
+
+cTitulo   := "TITULO JANELA"
+cMensagem := "Msg da Janela"
+aBotoes   := {"OPCAOA","OPCAOB","OPCAOC"} 
+nTamanho  := 1 // tamanho da janela, p,m,g --> 1,2,3
+cTexto    := "Texto que aparece na janela!"
+nRet      := 0
+
+// EXEMPLO FUNCAO AVISO
+nRet := AVISO(cTitulo, cMensagem, aBotoes, nTamanho, cTexto )
+
+Msgalert(nRet)
+	
+return
