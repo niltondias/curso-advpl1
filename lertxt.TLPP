@@ -1,0 +1,162 @@
+#include 'protheus.ch'
+#include 'parmtype.ch'
+#include 'Totvs.ch'
+#include 'FwMvcDef.ch'
+
+user function MegaSena()
+
+	// LerTXT()
+
+	Private cCadastro := "Megasena"    // Sempre declarar a variavel cCadastro
+	Private oBrowse := FwMBrowse():New()   // Criando o objeto de Browse
+	
+	oBrowse:setAlias("PA0")               // Amarrando a tabela ao objeto
+	oBrowse:setDescription('Mega Sena')
+	oBrowse:AddLegend("PA0->PA0_VLROK > 0 ","GREEN", "Ganhou Mega Sena")
+	oBrowse:AddLegend("PA0->PA0_VLRACU > 0 ", "RED","Acumulou") 
+	oBrowse:Activate() 
+
+return
+
+static function MenuDef()
+	Local aMenu := {}
+	
+	ADD OPTION aMenu TITLE 'Pesquisa'   ACTION 'PesqBrw' 	OPERATION 1 ACCESS 0
+	ADD OPTION aMenu TITLE 'Visualizar' ACTION 'axvisual'   OPERATION 2 ACCESS 0
+	//ADD OPTION aMenu TITLE 'Mega Sena'  ACTION 'LerTXT'     OPERATION 3 ACCESS 0
+	
+return ( aMenu )
+
+static function lertxt()
+
+	Local nCont as Numeric, nLinha as Numeric 
+	Local cArq as Character, cValTexto as Character
+	Local nFile  as Numeric, nValArrec as Numeric, nValAcum as Numeric
+	Local cLinha, cMens := "" as Character
+	Local aDados := {}, aResult := {} as Array
+	// Local bAcao := {|x,y| cMens += "Campo: "  + "'" + x + "'" + "  " }
+	
+	cArq := cGetFile( '*.csv|*.csv' , 'Separados por virgula (CSV)', 1, 'C:\TEMP', .F., GETF_LOCALHARD,.T., .T. )
+	nFile := FT_FUse(cArq)	
+	
+	// COM ERP NAO PRECISA DOS 3 COMANDOS ABAIXO	
+	SET EPOCH TO 1950  // data a partir de 1950
+	SET DATE BRITISH   // data formato britanico  DD/MM/AAAA
+	SET CENTURY ON     // ano com 4 digitos AAAA
+	
+	
+	// Contador usado para não ler o arquivo inteiro	
+	nCont := 0
+	
+	// Verificando se houve algum problema para abrir o arquivo
+	if nFile < 0
+		MsgInfo("Falha ao abrir o arquivo  " + cArq)
+		return
+	endif
+	
+	// Ir para o inicio do arquivo
+	FT_FGOTOP()
+	
+	// Array com o cabeçalho de cada coluna utilizado na exibição dos dados
+	aCab := { 'Linha: ', '| Concurso: ', '| Data Sorteio: ', '| Numeros: ', '| Valor Arrecadado: ', '| Valor Acumulado: '  }
+	
+	// Número da linha do arquivo para identificar e ajudar a conferir o dado importado
+	nLinha := 1
+
+	// Selecionando a área da tabela			
+	dbSelectArea("PA0")
+	dbSetOrder(1)
+	//zap // Deletando todos os registros ** teste **
+	
+	// varrer o arquivo até o final arquivo e até o final do contador
+	//
+	Do While !FT_FEOF() .AND. nCont <= 200			
+		if FT_FRECNO() == 1
+			FT_FSKIP()
+			nCont++
+			nLinha++
+			loop
+		endif	
+
+		// carregando a linha em que o arquivo está posicionado
+		cLinha := FT_FReadLn()		
+		
+		// Convertendo a linha em array. A separação dos campos é o caracter ';'
+		aDados := StrTokArr2( cLinha, ';', .T. )
+		cMens := ""
+		
+		// Extraindo cada campo do Array
+		//
+		cConcurso := strzero(val(aDados[1]),6)  // número do concurso ( em uma string com zeros à esquerda )
+		dDtSort   := CTOD(aDados[2])  // data do sorteio
+		cNums     := StrZero(val(aDados[3]),2) + ',' + StrZero(val(aDados[4]),2) + ',' + strzero(val(aDados[5]),2)+ ',' +;
+					 strzero(val(aDados[6]),2)+ ',' + strzero(val(aDados[7]),2)+ ',' + strzero(val(aDados[8]),2)  // Numeros sorteados em uma única string
+		
+		cVaLTexto := strtran(aDados[9],".","")  // Retirando os pontos de separação de milhares na string
+		cValTexto := strtran(cValTexto,",",".") // Substituindo a virgula que separa os decioais pelo ponto na string
+		
+		nValArrec := val(cValTexto)  // Valor ganho
+
+		cVaLTexto := strtran(aDados[19],".","") // Igual ao Valor arrecadado
+		cValTexto := strtran(cValTexto,",",".") 
+ 	
+		nValAcum  := val(cValTexto)  // Valor acumulado
+					 
+		//
+		// Exebir somente sorteios com ano a partir de 2000
+		if(year(dDtSort) < 2010)
+			FT_FSKIP()
+			nLinha++			
+			loop
+		endif 
+		
+		// Adicionar cada campo extraído em um array que depois pode ser em uma tabela
+		aadd( aResult, { nLinha, cConcurso, dDTSort, cNums, nValArrec, nValAcum } )
+
+		//Buscando o código do sorteio na tabela
+		//Se não localizar na tabela pode incluir 
+		if !dbSeek(xFilial("PA0") + cConcurso,.T.)
+		
+			//Criando um novo registro e bloqueando o mesmo
+			RecLock("PA0",.T.)
+			
+			//Preenchendo os campos com os dados do sorteio
+			PA0->PA0_SORTE  := cConcurso
+			PA0->PA0_DAT    := dDTSort
+			PA0->PA0_N1     := substr(cNums, 1, 2)
+			PA0->PA0_N2     := substr(cNums, 4, 2)
+			PA0->PA0_N3     := substr(cNums, 7, 2)
+			PA0->PA0_N4     := substr(cNums, 10, 2)
+			PA0->PA0_N5     := substr(cNums, 13, 2)
+			PA0->PA0_N6     := substr(cNums, 16,2)
+			PA0->PA0_VLROK  := nValArrec 
+			PA0->PA0_VLRACU := nValAcum
+						
+			// Desbloqueando o registro
+			msUnlock()
+			commit
+			
+			conout(aCab[1] + CVALTOCHAR(nLinha) + aCab[2] + cConcurso + aCab[3] + DTOC(dDTSort)+; 
+			aCab[4] + cNums + aCab[5] + alltrim(transform(nValArrec, iif(nValarrec < 1000, "@E R$999.99", "@E R$999,999,999.99" ) ) ) +;
+			aCab[6] + transform(nValAcum, iif( nValAcum < 1000, "@E R$999.99", "@E R$999,999,999.99" ) ) )
+		
+
+					
+		endif
+								
+		FT_FSKIP()   // Próximo registro ( linha ) do arquivo
+		nCont++      // Contador para limitar em quantas linhas será processado
+		nLinha++     // Contador da linha do arquivo que foi lida;
+	enddo
+	
+	FT_FUSE()  // Fechando o arquivo
+	
+	//
+	// Imprimindo os dados extraidos via função conout()
+//	For x := 1 to Len(aResult)
+//		conout(aCab[1] + CVALTOCHAR(aResult[x,1]) + aCab[2] + aResult[x,2] + aCab[3] + DTOC(aResult[x,3])+; 
+//				aCab[4] + aResult[x,4] + aCab[5] + alltrim(transform(aResult[x,5], "@E R$999,999,999.99" ) ) + aCab[6] + transform(aResult[x,6],"@E R$999,999,999.99") )
+//		
+//	Next
+	
+return
